@@ -16,3 +16,8 @@ SSH连接路由器或者到路由器管理界面终端查询
 opkg print-architecture
 cat /etc/os-release
 ```
+### 感谢
+Fedora Project
+```URL
+https://www.fedoraproject.org/
+```

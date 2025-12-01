@@ -11,6 +11,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/xujiegb/op-ipk-install/refs/he
 irm https://raw.githubusercontent.com/xujiegb/op-ipk-install/master/opinstall.ps1 | iex
 ```
 ### 查询系统架构信息
+SSH连接路由器或者到路由器管理界面终端查询
 ```bash
 opkg print-architecture
 cat /etc/os-release

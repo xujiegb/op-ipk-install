@@ -174,6 +174,17 @@ function Msg {
         'en:goodbye'    { 'All done. Exiting.'; break }
         'fr:goodbye'    { 'Terminé. Sortie du script.'; break }
 
+        # ==== 新增：文件名非法提示 ====
+        'zh_CN:filename_invalid_header' { '以下文件名不符合要求：仅允许英文字母、数字、点(.)、下划线(_) 和连字符(-)：'; break }
+        'zh_TW:filename_invalid_header' { '以下檔案名稱不符合要求：僅允許英文字母、數字、點(.)、底線(_) 和連字號(-)：'; break }
+        'en:filename_invalid_header'    { 'The following file names are invalid. Only letters, digits, dot (.), underscore (_) and hyphen (-) are allowed:'; break }
+        'fr:filename_invalid_header'    { 'Les noms de fichiers suivants sont invalides. Seuls les lettres, chiffres, point (.), underscore (_) et tiret (-) sont autorisés :'; break }
+
+        'zh_CN:filename_invalid_hint' { '请重命名上述文件后再重新运行脚本。'; break }
+        'zh_TW:filename_invalid_hint' { '請重新命名上述檔案後，再重新執行腳本。'; break }
+        'en:filename_invalid_hint'    { 'Please rename the above files and run this script again.'; break }
+        'fr:filename_invalid_hint'    { 'Veuillez renommer les fichiers ci-dessus, puis relancer ce script.'; break }
+
         default { '' }
     }
 }
@@ -334,6 +345,32 @@ function Record-Result {
         File   = $FileName
         Status = $Status
         Reason = $Reason
+    }
+}
+
+# ----------------- 文件名安全检查（只允许 A-Z / a-z / 0-9 / . / _ / -） -----------------
+function Test-FileNamesSafe {
+    param(
+        [string[]]$Paths
+    )
+
+    $invalid = @()
+    foreach ($p in $Paths) {
+        $name = [IO.Path]::GetFileName($p)
+        if (-not $name) { continue }
+        if ($name -notmatch '^[A-Za-z0-9._-]+$') {
+            $invalid += $name
+        }
+    }
+
+    if ($invalid.Count -gt 0) {
+        Write-Host (Msg 'filename_invalid_header')
+        foreach ($n in $invalid) {
+            Write-Host "  - $n"
+        }
+        Write-Host (Msg 'filename_invalid_hint')
+        Read-Host "按回车键退出 / Press Enter to exit"
+        exit 1
     }
 }
 
@@ -505,6 +542,10 @@ if ($ofd.ShowDialog() -ne [System.Windows.Forms.DialogResult]::OK -or -not $ofd.
 }
 
 $Files = $ofd.FileNames
+
+# 先检查文件名是否合法（只允许 A-Z / a-z / 0-9 / . / _ / -）
+Test-FileNamesSafe -Paths $Files
+
 Write-Host (Msg 'processing_files')
 
 $allOk = $true

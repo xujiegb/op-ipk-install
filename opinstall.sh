@@ -51,6 +51,7 @@ msg_line() {
       echo "1) 简体中文  2) 繁體中文  3) English  4) Français";;
     fr:lang_options)
       echo "1) 简体中文  2) 繁體中文  3) English  4) Français";;
+
     zh_CN:invalid_choice) echo "无效选择，请重新输入。";;
     zh_TW:invalid_choice) echo "無效選擇，請重新輸入。";;
     en:invalid_choice)    echo "Invalid choice, please try again.";;
@@ -183,6 +184,33 @@ msg_line() {
     zh_TW:goodbye) echo "任務結束，腳本退出。";;
     en:goodbye)    echo "All done. Exiting.";;
     fr:goodbye)    echo "Terminé. Sortie du script.";;
+
+    # 选择文件方式
+    zh_CN:select_file_mode)   echo "请选择 .ipk 文件获取方式：1) 拖拽到终端  2) 使用系统文件选择器";;
+    zh_TW:select_file_mode)   echo "請選擇 .ipk 檔案取得方式：1) 拖曳到終端機  2) 使用系統檔案選擇器";;
+    en:select_file_mode)      echo "Choose how to select .ipk files: 1) Drag into terminal  2) Use system file chooser";;
+    fr:select_file_mode)      echo "Choisissez comment sélectionner les fichiers .ipk : 1) Glisser dans le terminal  2) Utiliser le sélecteur de fichiers du système";;
+
+    zh_CN:select_file_drag)   echo "方式 1：在终端中按提示拖拽 .ipk 文件路径。";;
+    zh_TW:select_file_drag)   echo "方式 1：依照終端提示拖曳 .ipk 檔案路徑。";;
+    en:select_file_drag)      echo "Mode 1: drag .ipk file paths into the terminal when prompted.";;
+    fr:select_file_drag)      echo "Mode 1 : faites glisser les chemins de fichiers .ipk dans le terminal lorsque demandé。";;
+
+    zh_CN:select_file_dialog) echo "方式 2：弹出系统文件窗口（Finder / KDE / GNOME）选择 .ipk 文件。";;
+    zh_TW:select_file_dialog) echo "方式 2：彈出系統檔案視窗（Finder / KDE / GNOME）選擇 .ipk 檔案。";;
+    en:select_file_dialog)    echo "Mode 2: open system file dialog (Finder / KDE / GNOME) to choose .ipk files.";;
+    fr:select_file_dialog)    echo "Mode 2 : ouvrir la boîte de dialogue du système (Finder / KDE / GNOME) pour choisir les fichiers .ipk。";;
+
+    # 非法文件名提示
+    zh_CN:invalid_filename_header) echo "以下文件名不合法（仅允许英文、数字以及 . _ - 三种符号）：" ;;
+    zh_TW:invalid_filename_header) echo "以下檔名不合法（僅允許英文、數字以及 . _ - 三種符號）：" ;;
+    en:invalid_filename_header)    echo "These file names are invalid (only letters, digits and . _ - are allowed):" ;;
+    fr:invalid_filename_header)    echo "Les noms de fichiers suivants sont invalides (seuls les lettres, chiffres et . _ - sont autorisés) :" ;;
+
+    zh_CN:invalid_filename_footer) echo "请重命名以上文件后重新运行脚本。";;
+    zh_TW:invalid_filename_footer) echo "請重新命名以上檔案後再重新執行腳本。";;
+    en:invalid_filename_footer)    echo "Please rename the above files and run the script again.";;
+    fr:invalid_filename_footer)    echo "Veuillez renommer les fichiers ci-dessus et relancer le script.";;
   esac
 }
 
@@ -476,41 +504,144 @@ main() {
   setup_ssh_askpass
   test_connection
 
-  # 再让用户拖 .ipk 路径
+  # 选择获取 .ipk 文件的方式
   echo
-  msg_line no_files
-  echo
-  echo "请拖拽一个或多个 .ipk 文件到这里，然后按 Enter："
-  echo "Drag one or more .ipk files here, then press Enter:"
-  read -r line
+  msg_line select_file_mode
+  msg_line select_file_drag
+  msg_line select_file_dialog
 
-  if [ -z "$line" ]; then
-    echo "未输入任何文件，退出。"
+  local method
+  local -a paths=()
+
+  while true; do
+    read -r method
+    case "${method:-}" in
+      1)
+        # 拖拽到终端
+        echo
+        msg_line no_files
+        echo
+        echo "请拖拽一个或多个 .ipk 文件到这里，然后按 Enter："
+        echo "Drag one or more .ipk files here, then press Enter:"
+        read -r line
+        if [ -z "${line}" ]; then
+          echo "未输入任何文件，退出。"
+          exit 1
+        fi
+
+        # 按空格拆分，处理引号和 \ 空格
+        set -- $line
+        for arg in "$@"; do
+          local path="$arg"
+          # 去掉成对的引号
+          if [[ "$path" == \"*\" && "$path" == *\" ]]; then
+            path="${path:1:${#path}-2}"
+          elif [[ "$path" == \'*\' && "$path" == *\' ]]; then
+            path="${path:1:${#path}-2}"
+          fi
+          # 处理 macOS 的 \ 空格
+          path="${path//\\ / }"
+          paths+=("$path")
+        done
+        break
+        ;;
+      2)
+        # 使用系统文件选择器
+        if [[ "${OSTYPE:-}" == darwin* ]]; then
+          # macOS Finder
+          local out
+          out="$(osascript <<'APPLESCRIPT'
+set theFiles to choose file with prompt "Select .ipk files" of type {"ipk"} with multiple selections allowed
+set outText to ""
+repeat with f in theFiles
+  set outText to outText & POSIX path of f & "\n"
+end repeat
+return outText
+APPLESCRIPT
+)"
+          if [ -z "${out}" ]; then
+            echo "未选择文件，退出。"
+            exit 1
+          fi
+          while IFS= read -r p; do
+            [ -n "$p" ] && paths+=("$p")
+          done <<< "$out"
+        else
+          # Linux: 尝试 kdialog / zenity
+          if command -v kdialog >/dev/null 2>&1; then
+            local out
+            out="$(kdialog --getopenfilename "$PWD" "*.ipk" --multiple --separate-output 2>/dev/null || true)"
+            if [ -z "${out}" ]; then
+              echo "未选择文件，退出。"
+              exit 1
+            fi
+            while IFS= read -r p; do
+              [ -n "$p" ] && paths+=("$p")
+            done <<< "$out"
+          elif command -v zenity >/dev/null 2>&1; then
+            local out
+            out="$(zenity --file-selection --multiple --file-filter="*.ipk" --separator="|" 2>/dev/null || true)"
+            if [ -z "${out}" ]; then
+              echo "未选择文件，退出。"
+              exit 1
+            fi
+            IFS='|' read -r -a tmp_paths <<< "$out"
+            for p in "${tmp_paths[@]}"; do
+              [ -n "$p" ] && paths+=("$p")
+            done
+          else
+            echo "未找到可用的图形文件选择器 (kdialog/zenity)，请使用拖拽方式重新运行。"
+            exit 1
+          fi
+        fi
+        break
+        ;;
+      *)
+        msg_line invalid_choice
+        ;;
+    esac
+  done
+
+  # 检查是否有文件
+  if [ "${#paths[@]}" -eq 0 ]; then
+    echo "未获得任何文件路径，退出。"
     exit 1
   fi
 
-  # 按空格拆分成参数（路径里不要有空格；文件管理器加的引号会在这里处理）
-  set -- $line
+  # 文件名白名单校验：仅允许 A-Z a-z 0-9 . _ -
+  local -a invalid_names=()
+  local p base
+  for p in "${paths[@]}"; do
+    base="$(basename "$p")"
+    if [[ ! "$base" =~ ^[A-Za-z0-9._-]+$ ]]; then
+      invalid_names+=("$base")
+    fi
+  done
+
+  if [ "${#invalid_names[@]}" -gt 0 ]; then
+    msg_line invalid_filename_header
+    for n in "${invalid_names[@]}"; do
+      echo " - $n"
+    done
+    msg_line invalid_filename_footer
+    exit 1
+  fi
 
   msg_line processing_files
 
-  for arg in "$@"; do
-    path="$arg"
-    # 去掉前后成对的单引号或双引号
-    if [[ "$path" == \"*\" && "$path" == *\" ]]; then
-      path="${path:1:${#path}-2}"
-    elif [[ "$path" == \'*\' && "$path" == *\' ]]; then
-      path="${path:1:${#path}-2}"
-    fi
-
-    if [ ! -f "$path" ]; then
-      record_result "$(basename "$path")" "FAIL" "not_found"
+  local all_ok=1
+  for p in "${paths[@]}"; do
+    if [ ! -f "$p" ]; then
+      record_result "$(basename "$p")" "FAIL" "not_found"
       continue
     fi
-    process_file "$path" || { print_summary; exit 1; }
+    process_file "$p" || { all_ok=0; print_summary; exit 1; }
   done
 
   print_summary
+  if [ $all_ok -ne 1 ]; then
+    exit 1
+  fi
 }
 
 trap '

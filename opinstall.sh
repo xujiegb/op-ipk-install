@@ -30,7 +30,7 @@ msg() {
       echo "请选择语言 / Select language / 選擇語言 / Choisir la langue："
       ;;
     zh_TW:lang_menu)
-      echo "請選擇語言 / Select language / 選擇語言 / Choisir la langue："
+      echo "請選擇語言 / Select language / 選擇語言："
       ;;
     en:lang_menu)
       echo "Please select language / 请选择语言 / 選擇語言 / Choisir la langue:"
@@ -61,7 +61,7 @@ msg_line() {
     zh_CN:no_files) echo "请把 .ipk 文件路径拖到脚本后面再执行。";;
     zh_TW:no_files) echo "請將 .ipk 檔案路徑拖到腳本後面再執行。";;
     en:no_files)    echo "Please drag .ipk file paths after this script and run again.";;
-    fr:no_files)    echo "Veuillez glisser les fichiers .ipk après ce script puis l'exécuter.";;
+    fr:no_files)    echo "Veuillez glisser les fichiers .ipk après ce script puis l'exécuter。";;
 
     zh_CN:prompt_user) echo -n "请输入 OpenWrt 用户名（默认 root）：";;
     zh_TW:prompt_user) echo -n "請輸入 OpenWrt 使用者名稱（預設 root）：";;
@@ -95,7 +95,7 @@ msg_line() {
     zh_CN:info_password_ssh) echo "将使用密码登录，请在 ssh 提示时输入密码。";;
     zh_TW:info_password_ssh) echo "將使用密碼登入，請在 ssh 提示時輸入密碼。";;
     en:info_password_ssh)    echo "Password login selected. Please enter your password when ssh prompts.";;
-    fr:info_password_ssh)    echo "Authentification par mot de passe. Entrez votre mot de passe lorsque ssh le demande.";;
+    fr:info_password_ssh)    echo "Authentification par mot de passe. Entrez votre mot de passe lorsque ssh le demande。";;
 
     zh_CN:prompt_key_path) echo -n "请拖拽私钥文件路径到这里，然后回车：";;
     zh_TW:prompt_key_path) echo -n "請拖曳私鑰檔案路徑到這裡，然後按 Enter：";;
@@ -184,7 +184,7 @@ msg_line() {
     zh_CN:goodbye) echo "任务结束，脚本退出。";;
     zh_TW:goodbye) echo "任務結束，腳本退出。";;
     en:goodbye)    echo "All done. Exiting.";;
-    fr:goodbye)    echo "Terminé. Sortie du script.";;
+    fr:goodbye)    echo "Terminé. Sortie du script。";;
 
     # 选择文件方式
     zh_CN:select_file_mode)   echo "请选择 .ipk 文件获取方式：1) 拖拽到终端  2) 使用系统文件选择器";;
@@ -215,7 +215,7 @@ msg_line() {
   esac
 }
 
-# ---- Distro detection & GUI deps (Linux only) ----
+# ---- Distro detection & GUI deps (Linux only, xdg-style) ----
 detect_distro() {
   PKG_MANAGER=""
   if [ -r /etc/os-release ]; then
@@ -236,16 +236,17 @@ detect_distro() {
 
 install_gui_deps_linux() {
   detect_distro
-  echo "Trying to install GUI file chooser dependencies (zenity/kdialog)..."
+  echo "Trying to install GUI file chooser dependencies (zenity + xdg-utils)..."
   if [ "$PKG_MANAGER" = "dnf" ]; then
-    echo "Detected dnf-based distro, running: sudo dnf install -y zenity kdialog xdg-utils"
-    sudo dnf install -y zenity kdialog xdg-utils || true
+    echo "Detected dnf-based distro, running: sudo dnf install -y zenity xdg-utils"
+    sudo dnf install -y zenity xdg-utils || true
   elif [ "$PKG_MANAGER" = "apt" ]; then
-    echo "Detected apt-based distro, running: sudo apt install -y zenity kdialog xdg-utils"
+    echo "Detected apt-based distro, running: sudo apt install -y zenity xdg-utils"
     sudo apt update || true
-    sudo apt install -y zenity kdialog xdg-utils || true
+    sudo apt install -y zenity xdg-utils || true
   else
-    echo "Unsupported or unknown Linux distribution for auto-install. Please manually install zenity or kdialog."
+    echo "Unsupported or unknown Linux distribution for auto-install."
+    echo "Please manually install 'zenity' and 'xdg-utils'."
   fi
 }
 
@@ -602,37 +603,30 @@ APPLESCRIPT
             [ -n "$p" ] && paths+=("$p")
           done <<< "$out"
         else
-          # Linux：优先使用现有的 kdialog/zenity，如果没有就自动安装依赖再试一次
+          # Linux：通过 xdg 风格（zenity）文件选择器；如缺失则自动安装依赖后重试
           local out=""
           local used_gui=0
 
-          # 第一次尝试：现有环境
-          if command -v kdialog >/dev/null 2>&1; then
-            used_gui=1
-            out="$(kdialog --getopenfilename "$PWD" "*.ipk" --multiple --separate-output 2>/dev/null || true)"
-          elif command -v zenity >/dev/null 2>&1; then
+          # 第一次尝试：现有 zenity
+          if command -v zenity >/dev/null 2>&1; then
             used_gui=1
             out="$(zenity --file-selection --multiple --file-filter="*.ipk" --separator="|" 2>/dev/null || true)"
           fi
 
+          # 如未找到，则尝试自动安装依赖（zenity + xdg-utils）
           if [ $used_gui -eq 0 ]; then
-            # 没有任何 GUI 选择器，尝试自动安装依赖
-            echo "未找到可用的图形文件选择器 (kdialog/zenity)，尝试自动安装依赖..."
+            echo "未找到可用的图形文件选择器 (zenity)，尝试自动安装依赖 (zenity/xdg-utils)..."
             install_gui_deps_linux
 
-            # 第二次尝试：安装之后再查一次
-            if command -v kdialog >/dev/null 2>&1; then
-              used_gui=1
-              out="$(kdialog --getopenfilename "$PWD" "*.ipk" --multiple --separate-output 2>/dev/null || true)"
-            elif command -v zenity >/dev/null 2>&1; then
+            if command -v zenity >/dev/null 2>&1; then
               used_gui=1
               out="$(zenity --file-selection --multiple --file-filter="*.ipk" --separator="|" 2>/dev/null || true)"
             fi
           fi
 
           if [ $used_gui -eq 0 ]; then
-            echo "仍未找到可用的图形文件选择器 (kdialog/zenity)。"
-            echo "Please install 'zenity' or 'kdialog' manually, then run this script again."
+            echo "仍未找到可用的图形文件选择器 (zenity)。"
+            echo "Please install 'zenity' manually, then run this script again."
             echo "按回车键退出 / Press Enter to exit"
             read -r _
             exit 1
@@ -644,17 +638,11 @@ APPLESCRIPT
             exit 1
           fi
 
-          # 解析 GUI 返回的文件路径
-          if command -v kdialog >/dev/null 2>&1; then
-            while IFS= read -r p; do
-              [ -n "$p" ] && paths+=("$p")
-            done <<< "$out"
-          else
-            IFS='|' read -r -a tmp_paths <<< "$out"
-            for p in "${tmp_paths[@]}"; do
-              [ -n "$p" ] && paths+=("$p")
-            done
-          fi
+          # 解析 zenity 返回的文件路径（以 | 分隔）
+          IFS='|' read -r -a tmp_paths <<< "$out"
+          for p in "${tmp_paths[@]}"; do
+            [ -n "$p" ] && paths+=("$p")
+          done
         fi
         break
         ;;

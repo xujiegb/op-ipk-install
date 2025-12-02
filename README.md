@@ -2,7 +2,7 @@
 
 <p align="center">
   <img src="https://github.com/user-attachments/assets/d74ee14c-e75b-47e1-9f67-f5bc126d77f6"
-       width="150" height="150" alt="logo"/>
+       width="130" height="130" alt="logo"/>
 </p>
 
 上传、安装ipk脚本

@@ -1,7 +1,7 @@
 # op-ipk-install
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/5f72b862-2860-4a3f-aa2e-075c6d70b630"
+  <img src="https://github.com/user-attachments/assets/b810959f-3b2e-4ae7-b1d0-d77fae09828c"
        width="150" height="150" alt="logo"/>
 </p>
 

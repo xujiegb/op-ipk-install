@@ -1,8 +1,8 @@
 # op-ipk-install
 
 <p align="center">
-  <img src="[https://github.com/user-attachments/assets/ab138126-e10c-481a-bf82-49caad3761db"
-       width="130" height="130" alt="logo"/>
+  <img src="https://github.com/user-attachments/assets/5f72b862-2860-4a3f-aa2e-075c6d70b630"
+       width="150" height="150" alt="logo"/>
 </p>
 
 上传、安装ipk脚本

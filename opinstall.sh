@@ -20,6 +20,7 @@ TEMP_ASKPASS_FILE=""
 RESULT_FILES=()
 RESULT_STATUS=()
 RESULT_REASON=()
+PKG_MANAGER=""  # dnf / apt / empty
 
 # ---- i18n helper ----
 msg() {
@@ -214,6 +215,40 @@ msg_line() {
   esac
 }
 
+# ---- Distro detection & GUI deps (Linux only) ----
+detect_distro() {
+  PKG_MANAGER=""
+  if [ -r /etc/os-release ]; then
+    . /etc/os-release
+    case "${ID:-}" in
+      rhel|rocky|almalinux|fedora|centos)
+        PKG_MANAGER="dnf"
+        ;;
+      debian|ubuntu)
+        PKG_MANAGER="apt"
+        ;;
+      *)
+        PKG_MANAGER=""
+        ;;
+    esac
+  fi
+}
+
+install_gui_deps_linux() {
+  detect_distro
+  echo "Trying to install GUI file chooser dependencies (zenity/kdialog)..."
+  if [ "$PKG_MANAGER" = "dnf" ]; then
+    echo "Detected dnf-based distro, running: sudo dnf install -y zenity kdialog xdg-utils"
+    sudo dnf install -y zenity kdialog xdg-utils || true
+  elif [ "$PKG_MANAGER" = "apt" ]; then
+    echo "Detected apt-based distro, running: sudo apt install -y zenity kdialog xdg-utils"
+    sudo apt update || true
+    sudo apt install -y zenity kdialog xdg-utils || true
+  else
+    echo "Unsupported or unknown Linux distribution for auto-install. Please manually install zenity or kdialog."
+  fi
+}
+
 # ---- Helpers ----
 select_language() {
   msg lang_menu
@@ -341,7 +376,7 @@ run_scp() {
   if command -v setsid >/dev/null 2>&1; then
     setsid scp $scp_opts "$@" </dev/null
   else
-    scp $scp_opts "$@"
+    scp $scp_opts "$@" </dev/null
   fi
 }
 
@@ -548,7 +583,7 @@ main() {
       2)
         # 使用系统文件选择器
         if [[ "${OSTYPE:-}" == darwin* ]]; then
-          # macOS Finder
+          # macOS Finder（保持不变）
           local out
           out="$(osascript <<'APPLESCRIPT'
 set theFiles to choose file with prompt "Select .ipk files" of type {"ipk"} with multiple selections allowed
@@ -567,31 +602,58 @@ APPLESCRIPT
             [ -n "$p" ] && paths+=("$p")
           done <<< "$out"
         else
-          # Linux: 尝试 kdialog / zenity
+          # Linux：优先使用现有的 kdialog/zenity，如果没有就自动安装依赖再试一次
+          local out=""
+          local used_gui=0
+
+          # 第一次尝试：现有环境
           if command -v kdialog >/dev/null 2>&1; then
-            local out
+            used_gui=1
             out="$(kdialog --getopenfilename "$PWD" "*.ipk" --multiple --separate-output 2>/dev/null || true)"
-            if [ -z "${out}" ]; then
-              echo "未选择文件，退出。"
-              exit 1
+          elif command -v zenity >/dev/null 2>&1; then
+            used_gui=1
+            out="$(zenity --file-selection --multiple --file-filter="*.ipk" --separator="|" 2>/dev/null || true)"
+          fi
+
+          if [ $used_gui -eq 0 ]; then
+            # 没有任何 GUI 选择器，尝试自动安装依赖
+            echo "未找到可用的图形文件选择器 (kdialog/zenity)，尝试自动安装依赖..."
+            install_gui_deps_linux
+
+            # 第二次尝试：安装之后再查一次
+            if command -v kdialog >/dev/null 2>&1; then
+              used_gui=1
+              out="$(kdialog --getopenfilename "$PWD" "*.ipk" --multiple --separate-output 2>/dev/null || true)"
+            elif command -v zenity >/dev/null 2>&1; then
+              used_gui=1
+              out="$(zenity --file-selection --multiple --file-filter="*.ipk" --separator="|" 2>/dev/null || true)"
             fi
+          fi
+
+          if [ $used_gui -eq 0 ]; then
+            echo "仍未找到可用的图形文件选择器 (kdialog/zenity)。"
+            echo "Please install 'zenity' or 'kdialog' manually, then run this script again."
+            echo "按回车键退出 / Press Enter to exit"
+            read -r _
+            exit 1
+          fi
+
+          # GUI 已经调用，如果用户取消或关闭窗口，out 可能为空
+          if [ -z "${out}" ]; then
+            echo "未选择文件，退出。"
+            exit 1
+          fi
+
+          # 解析 GUI 返回的文件路径
+          if command -v kdialog >/dev/null 2>&1; then
             while IFS= read -r p; do
               [ -n "$p" ] && paths+=("$p")
             done <<< "$out"
-          elif command -v zenity >/dev/null 2>&1; then
-            local out
-            out="$(zenity --file-selection --multiple --file-filter="*.ipk" --separator="|" 2>/dev/null || true)"
-            if [ -z "${out}" ]; then
-              echo "未选择文件，退出。"
-              exit 1
-            fi
+          else
             IFS='|' read -r -a tmp_paths <<< "$out"
             for p in "${tmp_paths[@]}"; do
               [ -n "$p" ] && paths+=("$p")
             done
-          else
-            echo "未找到可用的图形文件选择器 (kdialog/zenity)，请使用拖拽方式重新运行。"
-            exit 1
           fi
         fi
         break

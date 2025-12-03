@@ -21,6 +21,28 @@ SSH连接路由器或者到路由器管理界面终端查询
 opkg print-architecture
 cat /etc/os-release
 ```
+### 系统要求
+桌面系统
+```system
+【 Windows 】
+
+  Windows 10 +
+
+【 Linux 】 (Gnome | KDE Plasma | Pantheon)
+
+  Red Hat Enterprise Linux 10 +
+  RockyLinux 10 +
+  AlmaLinux 10 +
+  Fedora Linux 43 +
+
+  Debian Linux 13 +
+  Ubuntu Linux 24.04 +
+  Elementary OS 8 +
+
+【 macOS 】
+
+  macOS 15+
+```
 ### 感谢
 Fedora Project
 ```URL

@@ -25,18 +25,9 @@ PKG_MANAGER=""  # dnf / apt / empty
 # ---- i18n helper ----
 msg() {
   local key="$1"
-  case "$LANG_CODE:$key" in
-    zh_CN:lang_menu)
-      echo "请选择语言 / Select language / 選擇語言 / Choisir la langue："
-      ;;
-    zh_TW:lang_menu)
-      echo "請選擇語言 / Select language / 選擇語言："
-      ;;
-    en:lang_menu)
-      echo "Please select language / 请选择语言 / 選擇語言 / Choisir la langue:"
-      ;;
-    fr:lang_menu)
-      echo "Veuillez choisir la langue / 请选择语言 / 選擇語言:"
+  case "$key" in
+    lang_menu)
+      echo "Hello"
       ;;
   esac
 }
@@ -44,13 +35,7 @@ msg() {
 msg_line() {
   local key="$1"
   case "$LANG_CODE:$key" in
-    zh_CN:lang_options)
-      echo "1) 简体中文  2) 繁體中文  3) English  4) Français";;
-    zh_TW:lang_options)
-      echo "1) 簡體中文  2) 繁體中文  3) English  4) Français";;
-    en:lang_options)
-      echo "1) 简体中文  2) 繁體中文  3) English  4) Français";;
-    fr:lang_options)
+    *:lang_options)
       echo "1) 简体中文  2) 繁體中文  3) English  4) Français";;
 
     zh_CN:invalid_choice) echo "无效选择，请重新输入。";;
@@ -154,7 +139,7 @@ msg_line() {
     zh_CN:install_fail_menu) echo "请选择：1) 重试  2) 忽略  3) 退出";;
     zh_TW:install_fail_menu) echo "請選擇：1) 重試  2) 忽略  3) 退出";;
     en:install_fail_menu)    echo "Choose: 1) Retry  2) Ignore  3) Exit";;
-    fr:install_fail_menu)    echo "Choisissez : 1) Réessayer  3) Ignorer  3) Quitter";;
+    fr:install_fail_menu)    echo "Choisissez : 1) Réessayer  2) Ignorer  3) Quitter";;
 
     zh_CN:force_installing) echo "正在尝试强制安装（--force-depends）……";;
     zh_TW:force_installing) echo "正在嘗試強制安裝（--force-depends）……";;
@@ -209,7 +194,7 @@ msg_line() {
     fr:invalid_filename_header)    echo "Les noms de fichiers suivants sont invalides (seuls les lettres, chiffres et . _ - sont autorisés) :" ;;
 
     zh_CN:invalid_filename_footer) echo "请重命名以上文件后重新运行脚本。";;
-    zh_TW:invalid_filename_footer) echo "請重新命名以上檔案後再重新執行腳本。";;
+    zh_TW:invalid_filename_footer) echo "請重新命名以上檔案後重新執行腳本。";;
     en:invalid_filename_footer)    echo "Please rename the above files and run the script again.";;
     fr:invalid_filename_footer)    echo "Veuillez renommer les fichiers ci-dessus et relancer le script.";;
   esac
@@ -250,18 +235,152 @@ install_gui_deps_linux() {
   fi
 }
 
+# ---- OS check (after language selected) ----
+os_check() {
+  local kernel os_name os_version
+  kernel="$(uname -s 2>/dev/null || echo unknown)"
+
+  case "$kernel" in
+    Darwin)
+      os_name="macOS"
+      os_version="$(sw_vers -productVersion 2>/dev/null || echo unknown)"
+      case "$LANG_CODE" in
+        zh_CN)
+          echo "检测到系统：${os_name} ${os_version}（内核 $(uname -r)）"
+          echo "支持的系统：macOS、Red Hat Enterprise Linux、Fedora、CentOS、Rocky Linux、AlmaLinux、Ubuntu、Debian、elementaryOS"
+          ;;
+        zh_TW)
+          echo "偵測到系統：${os_name} ${os_version}（核心 $(uname -r)）"
+          echo "支援的系統：macOS、Red Hat Enterprise Linux、Fedora、CentOS、Rocky Linux、AlmaLinux、Ubuntu、Debian、elementaryOS"
+          ;;
+        fr)
+          echo "Système détecté : ${os_name} ${os_version} (noyau $(uname -r))"
+          echo "Systèmes pris en charge : macOS, Red Hat Enterprise Linux, Fedora, CentOS, Rocky Linux, AlmaLinux, Ubuntu, Debian, elementaryOS"
+          ;;
+        *)
+          echo "Detected system: ${os_name} ${os_version} (kernel $(uname -r))"
+          echo "Supported systems: macOS, Red Hat Enterprise Linux, Fedora, CentOS, Rocky Linux, AlmaLinux, Ubuntu, Debian, elementaryOS"
+          ;;
+      esac
+      ;;
+
+    Linux)
+      if [ ! -r /etc/os-release ]; then
+        case "$LANG_CODE" in
+          zh_CN)
+            echo "无法检测当前 Linux 发行版（缺少 /etc/os-release），脚本仅支持：macOS、RHEL、Fedora、CentOS、Rocky、AlmaLinux、Ubuntu、Debian、elementaryOS。"
+            ;;
+          zh_TW)
+            echo "無法偵測目前的 Linux 發行版（缺少 /etc/os-release），腳本僅支援：macOS、RHEL、Fedora、CentOS、Rocky、AlmaLinux、Ubuntu、Debian、elementaryOS。"
+            ;;
+          fr)
+            echo "Impossible de détecter la distribution Linux actuelle (/etc/os-release manquant). Le script ne prend en charge que : macOS, RHEL, Fedora, CentOS, Rocky, AlmaLinux, Ubuntu, Debian, elementaryOS."
+            ;;
+          *)
+            echo "Cannot detect current Linux distribution (missing /etc/os-release)."
+            echo "Supported systems: macOS, RHEL, Fedora, CentOS, Rocky, AlmaLinux, Ubuntu, Debian, elementaryOS."
+            ;;
+        esac
+        exit 1
+      fi
+
+      # shellcheck disable=SC1091
+      . /etc/os-release
+
+      local supported=0
+      case "${ID:-}" in
+        rhel|rocky|almalinux|fedora|centos|centos-stream|ubuntu|debian|elementary)
+          supported=1
+          ;;
+      esac
+
+      if [ "$supported" -ne 1 ] && [ -n "${ID_LIKE:-}" ]; then
+        case "$ID_LIKE" in
+          *rhel*|*fedora*|*centos*|*rocky*|*almalinux*|*ubuntu*|*debian*)
+            supported=1
+            ;;
+        esac
+      fi
+
+      os_name="${NAME:-Linux}"
+      os_version="${VERSION:-}"
+
+      if [ "$supported" -ne 1 ]; then
+        case "$LANG_CODE" in
+          zh_CN)
+            echo "不支持的系统：${os_name} ${os_version}（ID='${ID:-}', ID_LIKE='${ID_LIKE:-}'）"
+            echo "仅支持：macOS、Red Hat Enterprise Linux、Fedora、CentOS、Rocky Linux、AlmaLinux、Ubuntu、Debian、elementaryOS。"
+            ;;
+          zh_TW)
+            echo "不支援的系統：${os_name} ${os_version}（ID='${ID:-}', ID_LIKE='${ID_LIKE:-}'）"
+            echo "僅支援：macOS、Red Hat Enterprise Linux、Fedora、CentOS、Rocky Linux、AlmaLinux、Ubuntu、Debian、elementaryOS。"
+            ;;
+          fr)
+            echo "Système non pris en charge : ${os_name} ${os_version} (ID='${ID:-}', ID_LIKE='${ID_LIKE:-}')"
+            echo "Systèmes pris en charge : macOS, Red Hat Enterprise Linux, Fedora, CentOS, Rocky Linux, AlmaLinux, Ubuntu, Debian, elementaryOS."
+            ;;
+          *)
+            echo "Unsupported system: ${os_name} ${os_version} (ID='${ID:-}', ID_LIKE='${ID_LIKE:-}')"
+            echo "Supported systems: macOS, Red Hat Enterprise Linux, Fedora, CentOS, Rocky Linux, AlmaLinux, Ubuntu, Debian, elementaryOS."
+            ;;
+        esac
+        exit 1
+      fi
+
+      case "$LANG_CODE" in
+        zh_CN)
+          echo "检测到系统：${os_name} ${os_version}（内核 $(uname -r)）"
+          echo "系统检查通过。"
+          ;;
+        zh_TW)
+          echo "偵測到系統：${os_name} ${os_version}（核心 $(uname -r)）"
+          echo "系統檢查通過。"
+          ;;
+        fr)
+          echo "Système détecté : ${os_name} ${os_version} (noyau $(uname -r))"
+          echo "Vérification du système réussie."
+          ;;
+        *)
+          echo "Detected system: ${os_name} ${os_version} (kernel $(uname -r))"
+          echo "System check passed."
+          ;;
+      esac
+      ;;
+
+    *)
+      case "$LANG_CODE" in
+        zh_CN)
+          echo "不支持的内核：${kernel}。仅支持：macOS、Linux（RHEL/Fedora/CentOS/Rocky/AlmaLinux/Ubuntu/Debian/elementaryOS）。"
+          ;;
+        zh_TW)
+          echo "不支援的核心：${kernel}。僅支援：macOS、Linux（RHEL/Fedora/CentOS/Rocky/AlmaLinux/Ubuntu/Debian/elementaryOS）。"
+          ;;
+        fr)
+          echo "Noyau non pris en charge : ${kernel}. Systèmes pris en charge : macOS, Linux (RHEL/Fedora/CentOS/Rocky/AlmaLinux/Ubuntu/Debian/elementaryOS)."
+          ;;
+        *)
+          echo "Unsupported kernel: ${kernel}. Supported: macOS and Linux (RHEL/Fedora/CentOS/Rocky/AlmaLinux/Ubuntu/Debian/elementaryOS)."
+          ;;
+      esac
+      exit 1
+      ;;
+  esac
+}
+
 # ---- Helpers ----
 select_language() {
-  msg lang_menu
-  msg_line lang_options
   while true; do
+    msg lang_menu
+    msg_line lang_options
     read -r choice
     case "$choice" in
       1) LANG_CODE="zh_CN"; break;;
       2) LANG_CODE="zh_TW"; break;;
       3) LANG_CODE="en";    break;;
       4) LANG_CODE="fr";    break;;
-      *) msg_line invalid_choice;;
+      *)
+        echo "Error"
+        ;;
     esac
   done
 }
@@ -535,6 +654,7 @@ print_summary() {
 main() {
   # 先跑语言/SSH 交互
   select_language
+  os_check
   prompt_basic_info
   prompt_auth_method
   setup_ssh_askpass

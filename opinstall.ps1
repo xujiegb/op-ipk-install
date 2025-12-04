@@ -34,15 +34,7 @@ $script:SshPort  = 22
 function Msg {
     param([string]$Key)
     switch ("$Global:Lang`:$Key") {
-        'zh_CN:lang_menu' { '请选择语言 / Select language / 選擇語言 / Choisir la langue：'; break }
-        'zh_TW:lang_menu' { '請選擇語言 / Select language / 選擇語言 / Choisir la langue：'; break }
-        'en:lang_menu'    { 'Please select language / 请选择语言 / 選擇語言 / Choisir la langue:'; break }
-        'fr:lang_menu'    { 'Veuillez choisir la langue / 请选择语言 / 選擇語言:'; break }
-
-        'zh_CN:lang_options' { '1) 简体中文  2) 繁體中文  3) English  4) Français'; break }
-        'zh_TW:lang_options' { '1) 簡體中文  2) 繁體中文  3) English  4) Français'; break }
-        'en:lang_options'    { '1) 简体中文  2) 繁體中文  3) English  4) Français'; break }
-        'fr:lang_options'    { '1) 简体中文  2) 繁體中文  3) English  4) Français'; break }
+        # （这里不再使用 lang_menu / lang_options，改为统一 Hello + 选项）
 
         'zh_CN:invalid_choice' { '无效选择，请重新输入。'; break }
         'zh_TW:invalid_choice' { '無效選擇，請重新輸入。'; break }
@@ -191,17 +183,98 @@ function Msg {
 
 # ----------------- 选择语言 -----------------
 function Select-Language {
-    Write-Host (Msg 'lang_menu')
-    Write-Host (Msg 'lang_options')
     while ($true) {
+        Write-Host 'Hello'
+        Write-Host '1) 简体中文  2) 繁體中文  3) English  4) Français'
         $choice = Read-Host
         switch ($choice) {
             '1' { $Global:Lang = 'zh_CN'; return }
             '2' { $Global:Lang = 'zh_TW'; return }
             '3' { $Global:Lang = 'en';    return }
             '4' { $Global:Lang = 'fr';    return }
-            default { Write-Host (Msg 'invalid_choice') }
+            default {
+                Write-Host 'Error'
+            }
         }
+    }
+}
+
+# ----------------- Windows 版本检测（Win10 ≥ 21H2 或 Win11 ≥ 23H2） -----------------
+function Test-WindowsVersion {
+    try {
+        $cv = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion"
+    } catch {
+        switch ($Global:Lang) {
+            'zh_CN' { Write-Host "无法读取系统版本信息，脚本仅支持 Windows 10 / 11。" }
+            'zh_TW' { Write-Host "無法讀取系統版本資訊，腳本僅支援 Windows 10 / 11。" }
+            'fr'    { Write-Host "Impossible de lire les informations de version du système. Le script ne prend en charge que Windows 10 / 11." }
+            default { Write-Host "Cannot read Windows version info. This script only supports Windows 10 / 11." }
+        }
+        Read-Host "按回车键退出 / Press Enter to exit"
+        exit 1
+    }
+
+    $build   = [int]$cv.CurrentBuildNumber
+    $product = $cv.ProductName
+    $disp    = $cv.DisplayVersion
+    $ubr     = $cv.UBR
+
+    # 打印当前系统版本
+    switch ($Global:Lang) {
+        'zh_CN' {
+            Write-Host "检测到系统：$product $disp (内部版本 $build.$ubr)"
+        }
+        'zh_TW' {
+            Write-Host "偵測到系統：$product $disp (內部版本 $build.$ubr)"
+        }
+        'fr' {
+            Write-Host "Système détecté : $product $disp (build interne $build.$ubr)"
+        }
+        default {
+            Write-Host "Detected system: $product $disp (build $build.$ubr)"
+        }
+    }
+
+    $ok = $false
+
+    # Windows 10: 21H2 = build 19044 (22H2 = 19045 也接受)
+    if ($build -ge 19044 -and $build -lt 22000) {
+        $ok = $true
+    }
+    # Windows 11: 23H2 = build 22631 (及以上接受)
+    elseif ($build -ge 22631) {
+        $ok = $true
+    }
+
+    if (-not $ok) {
+        switch ($Global:Lang) {
+            'zh_CN' {
+                Write-Host ""
+                Write-Host "当前系统版本过低。最低要求："
+                Write-Host "  - Windows 10 21H2 及以上（内部版本 >= 19044）"
+                Write-Host "  - 或 Windows 11 23H2 及以上（内部版本 >= 22631）"
+            }
+            'zh_TW' {
+                Write-Host ""
+                Write-Host "目前系統版本過低。最低需求："
+                Write-Host "  - Windows 10 21H2 以上（內部版本 >= 19044）"
+                Write-Host "  - 或 Windows 11 23H2 以上（內部版本 >= 22631）"
+            }
+            'fr' {
+                Write-Host ""
+                Write-Host "Votre version de Windows est trop ancienne. Versions minimales requises :"
+                Write-Host "  - Windows 10 21H2 ou supérieur (build interne >= 19044)"
+                Write-Host "  - ou Windows 11 23H2 ou supérieur (build interne >= 22631)"
+            }
+            default {
+                Write-Host ""
+                Write-Host "Your Windows version is too old. Minimum requirements:"
+                Write-Host "  - Windows 10 21H2 or later (build >= 19044)"
+                Write-Host "  - or Windows 11 23H2 or later (build >= 22631)"
+            }
+        }
+        Read-Host "按回车键退出 / Press Enter to exit"
+        exit 1
     }
 }
 
@@ -493,6 +566,7 @@ function Process-File {
 
 # ----------------- 主流程 -----------------
 Select-Language
+Test-WindowsVersion
 Ensure-PuTTY
 
 $u = Read-Host -Prompt (Msg 'prompt_user')

@@ -557,16 +557,16 @@ foreach ($f in $Files) {
     if (-not $ok) { $allOk = $false; break }
 }
 
-Write-Host (Msg 'summary_title')
+Write-Output (Msg 'summary_title')
 foreach ($r in $Results) {
     if ($r.Status -eq 'OK') {
-        Write-Host "$(Msg 'summary_ok') $($r.File) ($($r.Reason))"
+        Write-Output "$(Msg 'summary_ok') $($r.File) ($($r.Reason))"
     } else {
-        Write-Host "$(Msg 'summary_fail') $($r.File) ($($r.Reason))"
+        Write-Output "$(Msg 'summary_fail') $($r.File) ($($r.Reason))"
     }
 }
 
-Write-Host (Msg 'goodbye')
+Write-Output (Msg 'goodbye')
 
 if ($script:TempKeyFile -and (Test-Path $script:TempKeyFile)) {
     Remove-Item $script:TempKeyFile -ErrorAction SilentlyContinue

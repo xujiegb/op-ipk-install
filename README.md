@@ -14,15 +14,25 @@
        width="75" height="75" alt="logo"/>
 </p>
 
-上传、安装ipk脚本
+上传、安装ipk/apk脚本
 
 ### macOS/Linux
+opkg
 ```bash
 bash <(curl -Ls https://raw.githubusercontent.com/xujiegb/op-ipk-install/refs/heads/main/opinstall.sh)
 ```
+apk
+```bash
+bash <(curl -Ls https://raw.githubusercontent.com/xujiegb/op-ipk-install/refs/heads/main/apkinstall.sh)
+```
 ### Windows
+opkg
 ```powershell
 irm https://raw.githubusercontent.com/xujiegb/op-ipk-install/master/opinstall.ps1 | iex
+```
+apk
+```powershell
+irm https://raw.githubusercontent.com/xujiegb/op-ipk-install/master/apkinstall.ps1 | iex
 ```
 ### 查询系统架构信息
 SSH连接路由器或者到路由器管理界面终端查询

@@ -358,14 +358,14 @@ function Prompt-AuthMethod {
     }
 }
 
-$Results = @()
+$script:Results = @()
 function Record-Result {
     param(
         [string]$FileName,
         [string]$Status,
         [string]$Reason
     )
-    $Results += [pscustomobject]@{
+    $script:Results += [pscustomobject]@{
         File   = $FileName
         Status = $Status
         Reason = $Reason
@@ -557,16 +557,16 @@ foreach ($f in $Files) {
     if (-not $ok) { $allOk = $false; break }
 }
 
-Write-Output (Msg 'summary_title')
-foreach ($r in $Results) {
+Write-Host (Msg 'summary_title')
+foreach ($r in $script:Results) {
     if ($r.Status -eq 'OK') {
-        Write-Output "$(Msg 'summary_ok') $($r.File) ($($r.Reason))"
+        Write-Host "$(Msg 'summary_ok') $($r.File) ($($r.Reason))"
     } else {
-        Write-Output "$(Msg 'summary_fail') $($r.File) ($($r.Reason))"
+        Write-Host "$(Msg 'summary_fail') $($r.File) ($($r.Reason))"
     }
 }
 
-Write-Output (Msg 'goodbye')
+Write-Host (Msg 'goodbye')
 
 if ($script:TempKeyFile -and (Test-Path $script:TempKeyFile)) {
     Remove-Item $script:TempKeyFile -ErrorAction SilentlyContinue

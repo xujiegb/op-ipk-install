@@ -256,7 +256,9 @@ function Ensure-PuTTY {
 
     $tmpDir = Join-Path ([IO.Path]::GetTempPath()) "op_apk_install_putty"
     $script:TempPuttyDir = $tmpDir
-    if (-not (Test-Path $tmpDir)) { New-Item -ItemType Directory -Path $tmpDir | Out-Null }
+    if (-not (Test-Path $tmpDir)) {
+        New-Item -ItemType Directory -Path $tmpDir | Out-Null
+    }
 
     $arch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
     if ($arch -eq [System.Runtime.InteropServices.Architecture]::Arm64) {
@@ -286,6 +288,7 @@ function Get-PlinkArgs {
     if (-not $ForTest) { $args += '-batch' }
 
     if ($script:AuthMethod -ne 'password' -and $script:KeyFile) { $args += @('-i', $script:KeyFile) }
+
     if ($script:AuthMethod -eq 'password' -and $Global:SshPasswordPlain) { $args += @('-pw', $Global:SshPasswordPlain) }
 
     return $args
@@ -296,6 +299,7 @@ function Get-PscpArgs {
     $args = @('-batch', '-scp', '-P', "$Port")
 
     if ($script:AuthMethod -ne 'password' -and $script:KeyFile) { $args += @('-i', $script:KeyFile) }
+
     if ($script:AuthMethod -eq 'password' -and $Global:SshPasswordPlain) { $args += @('-pw', $Global:SshPasswordPlain) }
 
     return $args
@@ -327,7 +331,10 @@ function Prompt-AuthMethod {
                     continue
                 }
                 $kf = $ofdKey.FileName
-                if (-not (Test-Path $kf)) { Write-Host "Key file not found: $kf"; continue }
+                if (-not (Test-Path $kf)) {
+                    Write-Host "Key file not found: $kf"
+                    continue
+                }
                 $script:KeyFile = $kf
                 return
             }
@@ -353,8 +360,16 @@ function Prompt-AuthMethod {
 
 $Results = @()
 function Record-Result {
-    param([string]$FileName,[string]$Status,[string]$Reason)
-    $Results += [pscustomobject]@{ File=$FileName; Status=$Status; Reason=$Reason }
+    param(
+        [string]$FileName,
+        [string]$Status,
+        [string]$Reason
+    )
+    $Results += [pscustomobject]@{
+        File   = $FileName
+        Status = $Status
+        Reason = $Reason
+    }
 }
 
 function Test-FileNamesSafe {
@@ -401,8 +416,10 @@ function Process-File {
                 $safeArgs += $pscpArgs[$i]
             }
         }
+
         $displayCmd = "`"$script:PscpPath`" " + (
-            $safeArgs + @($Path, $remote) | ForEach-Object { '"{0}"' -f $_ }
+            $safeArgs + @($Path, $remote) |
+            ForEach-Object { '"{0}"' -f $_ }
         ) -join ' '
         Write-Host "上传命令：$displayCmd"
 
@@ -428,7 +445,10 @@ function Process-File {
         $fullCmd = $plinkArgs + @("$($script:UserName)@$($script:HostName)", "apk add --allow-untrusted /tmp/$base")
 
         $outputLines = @()
-        & $script:PlinkPath @fullCmd 2>&1 | ForEach-Object { $outputLines += $_; Write-Host $_ }
+        & $script:PlinkPath @fullCmd 2>&1 | ForEach-Object {
+            $outputLines += $_
+            Write-Host $_
+        }
 
         $rc = $LASTEXITCODE
         Write-Host "plink 返回码：$rc"
@@ -441,7 +461,7 @@ function Process-File {
 
         Write-Host (Msg 'install_failed')
 
-        $hasDepIssue = ($outputLines -match 'unable to select packages|breaks:|conflicts:')
+        $hasDepIssue = ($outputLines -match 'unsatisfiable constraints' -or $outputLines -match 'conflicts:' -or $outputLines -match 'breaks:')
 
         if ($hasDepIssue) { Write-Host (Msg 'install_fail_menu_dep') }
         else { Write-Host (Msg 'install_fail_menu') }
@@ -456,7 +476,10 @@ function Process-File {
                     Write-Host (Msg 'force_installing')
                     $forceCmd = $plinkArgs + @("$($script:UserName)@$($script:HostName)", "apk add --allow-untrusted --force-broken-world /tmp/$base")
                     $output2 = @()
-                    & $script:PlinkPath @forceCmd 2>&1 | ForEach-Object { $output2 += $_; Write-Host $_ }
+                    & $script:PlinkPath @forceCmd 2>&1 | ForEach-Object {
+                        $output2 += $_
+                        Write-Host $_
+                    }
                     $rc2 = $LASTEXITCODE
                     Write-Host "plink(force) 返回码：$rc2"
                     if ($rc2 -eq 0) {
@@ -514,7 +537,7 @@ Add-Type -AssemblyName System.Windows.Forms | Out-Null
 Write-Host "请在打开的文件对话框中选择一个或多个 .apk 文件。"
 $ofd = New-Object System.Windows.Forms.OpenFileDialog
 $ofd.Multiselect = $true
-$ofd.Filter = "apk files (*.apk)|*.apk|All files (*.*)|*.*"
+$ofd.Filter = "apk packages (*.apk)|*.apk|All files (*.*)|*.*"
 
 if ($ofd.ShowDialog() -ne [System.Windows.Forms.DialogResult]::OK -or -not $ofd.FileNames) {
     Write-Host "未选择文件，退出。"
@@ -536,14 +559,22 @@ foreach ($f in $Files) {
 
 Write-Host (Msg 'summary_title')
 foreach ($r in $Results) {
-    if ($r.Status -eq 'OK') { Write-Host "$(Msg 'summary_ok') $($r.File) ($($r.Reason))" }
-    else { Write-Host "$(Msg 'summary_fail') $($r.File) ($($r.Reason))" }
+    if ($r.Status -eq 'OK') {
+        Write-Host "$(Msg 'summary_ok') $($r.File) ($($r.Reason))"
+    } else {
+        Write-Host "$(Msg 'summary_fail') $($r.File) ($($r.Reason))"
+    }
 }
 
 Write-Host (Msg 'goodbye')
 
-if ($script:TempKeyFile -and (Test-Path $script:TempKeyFile)) { Remove-Item $script:TempKeyFile -ErrorAction SilentlyContinue }
-if ($script:TempPuttyDir -and (Test-Path $script:TempPuttyDir)) { Remove-Item $script:TempPuttyDir -Recurse -Force -ErrorAction SilentlyContinue }
+if ($script:TempKeyFile -and (Test-Path $script:TempKeyFile)) {
+    Remove-Item $script:TempKeyFile -ErrorAction SilentlyContinue
+}
+
+if ($script:TempPuttyDir -and (Test-Path $script:TempPuttyDir)) {
+    Remove-Item $script:TempPuttyDir -Recurse -Force -ErrorAction SilentlyContinue
+}
 
 $Global:SshPasswordPlain = $null
 
